@@ -394,6 +394,16 @@ if is_zluda:
     torch.topk = safe_topk
 # ------------------- End Top-K Patch -------------------
 
+# ------------------- comfy-kitchen Flash Decode Patch -------------------
+# The kitchen CUDA extension needs a CUDA 13 runtime, ZLUDA reports 11.8.
+if is_zluda:
+    try:
+        import comfy_kitchen
+        comfy_kitchen.flash_attention_decode_is_available = lambda device=None: False
+    except (ImportError, AttributeError):
+        pass
+# ------------------- End comfy-kitchen Flash Decode Patch -------------------
+
 # ------------------- ONNX Runtime Patch -------------------
 try:
     import onnxruntime as ort
