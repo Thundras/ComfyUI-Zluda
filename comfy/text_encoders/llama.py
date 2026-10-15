@@ -612,7 +612,17 @@ def apply_rope(xq, xk, freqs_cis):
     if k_ndim == 3:
         xk = xk.unsqueeze(0)
 
-    xq, xk = comfy_kitchen.apply_rope_split_half(xq, xk, matrix)
+    if comfy_kitchen is not None:
+        xq, xk = comfy_kitchen.apply_rope_split_half(xq, xk, matrix)
+    else:
+        # elementwise 2x2 rotation, a batched matmul on tiny matrices is very slow on ZLUDA
+        m = matrix.float()
+        def rotate(x):
+            half = matrix.shape[-3]
+            x1, x2 = x[..., :half].float(), x[..., half:2 * half].float()
+            out = torch.cat((m[..., 0, 0] * x1 + m[..., 0, 1] * x2, m[..., 1, 0] * x1 + m[..., 1, 1] * x2), dim=-1).to(x.dtype)
+            return torch.cat((out, x[..., 2 * half:]), dim=-1)
+        xq, xk = rotate(xq), rotate(xk)
     if q_ndim == 3:
         xq = xq.squeeze(0)
     if k_ndim == 3:
