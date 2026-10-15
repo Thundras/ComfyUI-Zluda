@@ -165,6 +165,17 @@ def move_weight_functions(m, device):
                 memory += f.move_to(device=device)
     return memory
 
+def to_cpu_chunked(t, chunk_bytes=16 * 1024 * 1024):
+    # single large device to host copies crash on ZLUDA (YuE2 lm_head), copy in slices
+    if t.device.type == "cpu" or not t.is_contiguous() or t.numel() * t.element_size() <= 256 * 1024 * 1024:
+        return t.to("cpu")
+    out = torch.empty(t.shape, dtype=t.dtype, device="cpu")
+    src, dst = t.view(-1), out.view(-1)
+    step = max(1, chunk_bytes // t.element_size())
+    for i in range(0, t.numel(), step):
+        dst[i:i + step].copy_(src[i:i + step])
+    return out
+
 def string_to_seed(data):
     logging.warning("WARNING: string_to_seed has moved from comfy.model_patcher to comfy.utils")
     return comfy.utils.string_to_seed(data)
@@ -1233,7 +1244,10 @@ class ModelPatcher:
                     bias_key = "{}.bias".format(n)
                     if move_weight:
                         cast_weight = self.force_cast_weights
-                        m.to(device_to)
+                        if comfy.model_management.is_device_cpu(device_to):
+                            m._apply(to_cpu_chunked)
+                        else:
+                            m.to(device_to)
                         module_mem += move_weight_functions(m, device_to)
                         if lowvram_possible:
                             if weight_key in self.patches:
