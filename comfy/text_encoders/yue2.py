@@ -133,6 +133,10 @@ class YuE2TEModel(torch.nn.Module):
         branches = 1 if tokens["cfg_scale"] == 1.0 else 2
         dtype = torch.bfloat16 if comfy.model_management.should_use_bf16(device) else torch.float32
         cache = branches * 2 * config.num_hidden_layers * config.num_key_value_heads * config.head_dim * length
+        if tokens.get("music_only"):
+            # generation only prefills the prompt, the acoustic pass is estimated by its own load
+            prompt = len(tokens["prefix"]) + abc_length + 2
+            return (cache + branches * prompt * (prompt + config.intermediate_size * 3 + config.hidden_size * 8)) * comfy.model_management.dtype_size(dtype)
         prefill = branches * (length * length + length * (config.intermediate_size * 3 + config.hidden_size * 8))
         return (cache + prefill) * comfy.model_management.dtype_size(dtype)
 
@@ -247,6 +251,9 @@ class YuE2TEModel(torch.nn.Module):
 
     def generate(self, tokens, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.95, repetition_penalty=1.0, seed=None, **kwargs):
         dtype = torch.bfloat16 if comfy.model_management.should_use_bf16(self.execution_device) else torch.float32
+        if tokens.get("music_only"):
+            prefix, negative, max_tokens, _ = self._music_prompt(tokens)
+            return self._generate_music(tokens, prefix, negative, max_tokens, dtype)[0]
         ids, _ = self._generate(
             tokens["prefix"], tokens["seed"] if seed is None else seed, max_length, "abc", dtype,
             temperature=temperature if do_sample else 0, top_p=top_p, top_k=top_k,
@@ -254,16 +261,10 @@ class YuE2TEModel(torch.nn.Module):
         )
         return ids
 
-    def encode_token_weights(self, tokens):
-        device = self.execution_device
-        dtype = torch.bfloat16 if comfy.model_management.should_use_bf16(device) else torch.float32
-        prefix = tokens["prefix"]
-        abc_ids = tokens["abc_ids"]
-        cot = tokens["cot"]
-        if cot == "off":
-            abc_ids = []
-        prefix = prefix + abc_ids + [ABC_END, MUSIC_START]
-        negative = tokens["negative"] + ([MUSIC_START] if cot == "off" else [ABC_START] + abc_ids + [ABC_END, MUSIC_START])
+    def _music_prompt(self, tokens):
+        abc_ids = [] if tokens["cot"] == "off" else tokens["abc_ids"]
+        prefix = tokens["prefix"] + abc_ids + [ABC_END, MUSIC_START]
+        negative = tokens["negative"] + ([MUSIC_START] if tokens["cot"] == "off" else [ABC_START] + abc_ids + [ABC_END, MUSIC_START])
         context = self.config.max_position_embeddings
         max_tokens = min(tokens["max_tokens"], context - max(len(prefix), len(negative)))
         # One acoustic frame needs two positions plus three boundary tokens.
@@ -271,20 +272,29 @@ class YuE2TEModel(torch.nn.Module):
             raise ValueError("YuE2 prompt leaves no room for music; shorten the style, lyrics, or ABC.")
         if max_tokens < tokens["max_tokens"]:
             logging.info("YuE2 music budget reduced to %d tokens (%.2f seconds) to fit the prompt.", max_tokens, max_tokens / FRAMES_PER_SECOND)
+        return prefix, negative, max_tokens, abc_ids
+
+    def _generate_music(self, tokens, prefix, negative, max_tokens, dtype):
+        return self._generate(
+            prefix, tokens["seed"], max_tokens, "semantic", dtype,
+            negative=negative, cfg_scale=tokens["cfg_scale"], legacy_off=tokens["cot"] == "off",
+            temperature=tokens["temperature"], top_p=tokens["top_p"], top_k=tokens["top_k"],
+            repetition_penalty=tokens["repetition_penalty"], penalty_window=50,
+            min_tokens=min(200, max_tokens),
+        )
+
+    def encode_token_weights(self, tokens):
+        device = self.execution_device
+        dtype = torch.bfloat16 if comfy.model_management.should_use_bf16(device) else torch.float32
+        prefix, negative, max_tokens, abc_ids = self._music_prompt(tokens)
         if "semantic" in tokens:
             semantic, semantic_truncated = tokens["semantic"], tokens["semantic_truncated"]
         else:
-            semantic, semantic_truncated = self._generate(
-                prefix, tokens["seed"], max_tokens, "semantic", dtype,
-                negative=negative, cfg_scale=tokens["cfg_scale"], legacy_off=cot == "off",
-                temperature=tokens["temperature"], top_p=tokens["top_p"], top_k=tokens["top_k"],
-                repetition_penalty=tokens["repetition_penalty"], penalty_window=50,
-                min_tokens=min(200, max_tokens),
-            )
+            semantic, semantic_truncated = self._generate_music(tokens, prefix, negative, max_tokens, dtype)
         conditioning, chunks = self._acoustic_conditioning(prefix, semantic, dtype)
         return conditioning, None, {
             "yue2_chunks": chunks, "yue2_abc_ids": abc_ids, "yue2_frames": len(semantic),
-            "yue2_truncated": semantic_truncated, "yue2_semantic": semantic,
+            "yue2_truncated": semantic_truncated,
         }
 
 

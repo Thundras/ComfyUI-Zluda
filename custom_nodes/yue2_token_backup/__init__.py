@@ -43,8 +43,8 @@ def load_backup(path):
     return tokens
 
 
-def save_backup(tokens, extra, settings):
-    semantic = extra["yue2_semantic"]
+def save_backup(tokens, settings):
+    semantic = tokens["semantic"]
     safe_title = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", settings["title"]).strip(" .")[:60] or "YuE2"
     if safe_title.upper().split(".")[0] in RESERVED_NAMES:
         safe_title = "Song_" + safe_title
@@ -61,8 +61,8 @@ def save_backup(tokens, extra, settings):
         "generation_settings": settings,
         "actual_duration": len(semantic) / FRAMES_PER_SECOND,
         "semantic": semantic,
-        "semantic_truncated": extra["yue2_truncated"],
-        "request_tokens": tokens,
+        "semantic_truncated": tokens["semantic_truncated"],
+        "request_tokens": {k: v for k, v in tokens.items() if k not in ("semantic", "semantic_truncated")},
     }
     temporary = path.with_suffix(".tmp")
     temporary.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
@@ -136,23 +136,22 @@ class YuE2LoadTokenBackup:
                 temperature=1.0, top_p=0.95, top_k=100,
                 repetition_penalty=1.2, cfg_scale=1.0,
             )
-            description = "Neue Generierung"
-            used_seed = seed
-
-        conditioning = clip.encode_from_tokens_scheduled(tokens)
-        extra = conditioning[0][1]
-        if token_backup == NEW:
-            settings = {
+            # Generate the music tokens first and back them up before the acoustic pass,
+            # which then loads like a resumed backup.
+            tokens["semantic"] = clip.generate(dict(tokens, music_only=True))
+            tokens["semantic_truncated"] = len(tokens["semantic"]) >= tokens["max_tokens"]
+            path = save_backup(tokens, {
                 "title": title.strip() or "Mein Song",
                 "mode": mode,
                 "abc_planning": bool(abc_planning),
                 "max_duration": max_duration,
                 "seed": seed,
-            }
-            path = save_backup(tokens, extra, settings)
-            description += f"\nGesichert: {path.name}"
-        extra.pop("yue2_semantic")
-        frames = extra["yue2_frames"]
+            })
+            description = f"Neue Generierung\nGesichert: {path.name}"
+            used_seed = seed
+
+        conditioning = clip.encode_from_tokens_scheduled(tokens)
+        frames = conditioning[0][1]["yue2_frames"]
         seconds = frames / FRAMES_PER_SECOND
         info = (
             f"{description}\n"
