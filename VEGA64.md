@@ -28,7 +28,7 @@ Commits laufen über die Noreply-Adresse `10862226+Thundras@users.noreply.github
 | YuE2-Tokens speichern und fortsetzen | `comfy/text_encoders/yue2.py`, `custom_nodes/yue2_token_backup/` | Lange Token-Generierungen müssen nicht wiederholt werden. |
 | Große Tensoren stückweise auf die CPU kopieren | `comfy/model_patcher.py` | Eine einzelne große GPU→CPU-Kopie (YuE2 lm_head, ~750 MB) stürzt unter ZLUDA ab. Tensoren über 256 MB werden in 16-MB-Blöcken kopiert. |
 | `--disable-mmap` liest ohne mmap | `comfy/utils.py` | Liest Tensor für Tensor in den RAM, die Spitze bleibt bei der Modellgröße. |
-| Launcher | `comfyui-user.bat` | ROCm 5.7, `--use-quad-cross-attention --reserve-vram 0.9 --disable-async-offload --disable-pinned-memory --disable-mmap` |
+| Launcher | `comfyui-user.bat` | ROCm 5.7, `--use-quad-cross-attention --reserve-vram 0.9 --disable-async-offload --disable-pinned-memory --disable-mmap --disable-smart-memory` |
 | Flash-Decode von comfy-kitchen unter ZLUDA aus | `comfy/customzluda/zluda-default.py` | Nur für Torch 2.7 relevant, siehe unten. |
 | Launcher Torch 2.7 | `comfyui-t24.bat` | wie `comfyui-user.bat`, aber `venv-t24`, zusätzlich `--fp16-unet` und ohne `git pull` |
 
@@ -62,6 +62,9 @@ Ein Token braucht ~180 ms. Davon entfallen ~75 % auf Matrix-Vektor-Multiplikatio
 - fp16-Gewichte mit fp32-Rechnung wären bitidentisch und ~13 % schneller. Nicht umgesetzt: `--fp16-text-enc` greift nicht, weil `pick_weight_dtype` bf16 aus dem Checkpoint behält.
 - ZLUDA meldet sm 8.8, deshalb rechnet ComfyUI YuE2 in bf16, obwohl die Vega kein natives bf16 hat.
 - Die „Pausen“ beim Music Sampling alle 16 Token sind das Zurücklesen der Token von der GPU. Die Gesamtzeit ändert sich dadurch nicht.
+- Lange Songs: Der Text-Encoder (4,1 GB) und der KV-Cache konkurrieren um den VRAM. Mit ~3,7 GB des Text-Encoders im VRAM laufen ~3,3 Token/s, komplett ausgelagert nur ~1,25 Token/s. Nach einer langen Sitzung mit vielen Modellen wurde der Text-Encoder einmal komplett ausgelagert. Deshalb starten beide Launcher mit `--disable-smart-memory`: Modelle wandern nach jedem Job in den RAM, und jeder Job beginnt mit freiem VRAM. Das Neuladen dauert etwa eine Sekunde.
+- Für lange Songs zählt `max_duration` (25 Token pro Sekunde Audio): Der VRAM wird für die volle Obergrenze reserviert, der Song endet aber oft früher.
+- Pinned Memory (`cudaHostRegister`) funktioniert auf der Vega (13,4 statt 8,9 GB/s RAM→GPU) und brachte beim Auslagern +8 %. Ist noch nicht aktiviert, weil patientx es für ZLUDA standardmäßig abschaltet.
 
 ## Torch 2.7 + comfy-kitchen (`venv-t24`)
 
