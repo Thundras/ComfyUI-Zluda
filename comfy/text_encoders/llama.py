@@ -987,7 +987,7 @@ class Llama2_(nn.Module):
             else:
                 mask = causal_mask
 
-        optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=True)
+        optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=x.shape[1] <= 512)
 
         enable_graph = self.graph_dynamic_vbar_blocks and (fixed_kv_decode or spec_decode)
         if enable_graph:
