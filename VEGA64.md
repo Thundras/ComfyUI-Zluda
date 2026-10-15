@@ -65,6 +65,16 @@ Ein Token braucht ~180 ms. Davon entfallen ~75 % auf Matrix-Vektor-Multiplikatio
 - Lange Songs: Der Text-Encoder (4,1 GB) und der KV-Cache konkurrieren um den VRAM. Mit ~3,7 GB des Text-Encoders im VRAM laufen ~3,3 Token/s, komplett ausgelagert nur ~1,25 Token/s. Nach einer langen Sitzung mit vielen Modellen wurde der Text-Encoder einmal komplett ausgelagert. Deshalb starten beide Launcher mit `--disable-smart-memory`: Modelle wandern nach jedem Job in den RAM, und jeder Job beginnt mit freiem VRAM. Das Neuladen dauert etwa eine Sekunde.
 - Für lange Songs zählt `max_duration` (25 Token pro Sekunde Audio): Der VRAM wird für die volle Obergrenze reserviert, der Song endet aber oft früher.
 - Die Diffusion langer Songs läuft auf 8 GB ausgelagert (~28 s pro Schritt bei 316 s Audio statt ~1 s bei 30 s). ComfyUI schätzt für 316 s ~5,7 GB Rechenbedarf (`memory_usage_factor` 4.0 mit der Formel ohne Flash-Attention, plus ~1 GB Konditionierung). Die Schätzung ist nicht zu hoch: Mit erzwungen komplett geladenem Modell stürzt der erste Schritt unter ZLUDA mit einem Segmentation Fault ab statt mit einem Out-of-Memory-Fehler. Nicht ändern. Weniger Sampling-Schritte sind der einzige Hebel.
+- HBCC (AMD-Software, „HBCC-Speichersegment“) an lassen. HIP/ZLUDA und damit ComfyUI sehen in jedem Fall nur 8.176 MB, HBCC hilft aber beim teilweise ausgelagerten YuE2-Text-Encoder:
+
+  | HBCC | YuE2 Token/s (langer Song, bf16) | SD 1.5 it/s |
+  |---|---|---|
+  | aus | 2,98 (zweimal gemessen) | 1,40–1,49 |
+  | 12 GB | 3,41 | 1,45 |
+  | 16 GB | 3,34 | 1,47 |
+
+  Die Größe des Segments spielt keine Rolle. Der Treiber setzt beim Umschalten zurück (Bildschirm flackert). Der Wechsel von an auf aus ließ ZLUDA alle Kernels neu übersetzen (~55 min), 12 → 16 GB nicht.
+- Hardwarebeschleunigung im Browser ausschalten, wenn er nebenbei läuft: Mit Video im Browser fiel YuE2 von ~2,7 auf ~1,9 Token/s.
 - Pinned Memory (`cudaHostRegister`) funktioniert auf der Vega (13,4 statt 8,9 GB/s RAM→GPU) und brachte beim Auslagern +8 %. Ist noch nicht aktiviert, weil patientx es für ZLUDA standardmäßig abschaltet.
 
 ## Torch 2.7 + comfy-kitchen (`venv-t24`)
