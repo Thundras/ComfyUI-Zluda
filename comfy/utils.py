@@ -167,13 +167,65 @@ def load_safetensors(ckpt):
     return sd, header.get("__metadata__", {}),
 
 
+def load_safetensors_no_mmap(ckpt, device):
+    # reads tensor by tensor into RAM, peak memory stays at the model size
+    file_size = os.path.getsize(ckpt)
+    with open(ckpt, "rb") as f:
+        size_bytes = f.read(8)
+        if len(size_bytes) != 8:
+            raise _incomplete_safetensors_error("The safetensors header is incomplete.", ckpt)
+        header_size = struct.unpack("<Q", size_bytes)[0]
+        if header_size > _SAFETENSORS_MAX_HEADER_SIZE:
+            raise _invalid_safetensors_error("The safetensors header is too large.", ckpt)
+        data_base_offset = 8 + header_size
+        if data_base_offset > file_size:
+            raise _incomplete_safetensors_error("The safetensors header is incomplete.", ckpt)
+        try:
+            header = json.loads(f.read(header_size).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as e:
+            raise _invalid_safetensors_error(str(e), ckpt) from e
+        if not isinstance(header, dict):
+            raise _invalid_safetensors_error("The safetensors header is invalid.", ckpt)
+
+        sd = {}
+        for name, info in header.items():
+            if name == "__metadata__":
+                continue
+
+            start, end = info["data_offsets"]
+            dtype = _TYPES[info["dtype"]]
+            if start < 0 or end < start:
+                raise _invalid_safetensors_error("Tensor '{}' has invalid data offsets.".format(name), ckpt)
+            if data_base_offset + end > file_size:
+                raise _incomplete_safetensors_error("Tensor '{}' extends past the end of the file.".format(name), ckpt)
+            if math.prod(info["shape"]) * dtype.itemsize != end - start:
+                raise _invalid_safetensors_error("Tensor '{}' does not match its declared shape and dtype.".format(name), ckpt)
+
+            data = torch.empty((end - start,), dtype=torch.uint8)
+            f.seek(data_base_offset + start)
+            view = memoryview(data.numpy())
+            read = 0
+            while read < len(view):
+                count = f.readinto(view[read:])
+                if not count:
+                    raise _incomplete_safetensors_error("Tensor '{}' extends past the end of the file.".format(name), ckpt)
+                read += count
+            sd[name] = data.view(dtype).view(info["shape"]).to(device)
+
+    return sd, header.get("__metadata__", {})
+
+
 def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     if device is None:
         device = torch.device("cpu")
     metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
-            if comfy.memory_management.aimdo_enabled:
+            if DISABLE_MMAP:
+                sd, metadata = load_safetensors_no_mmap(ckpt, device)
+                if not return_metadata:
+                    metadata = None
+            elif comfy.memory_management.aimdo_enabled:
                 sd, metadata = load_safetensors(ckpt)
                 if not return_metadata:
                     metadata = None
@@ -181,10 +233,7 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
                 with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
                     sd = {}
                     for k in f.keys():
-                        tensor = f.get_tensor(k)
-                        if DISABLE_MMAP:  # TODO: Not sure if this is the best way to bypass the mmap issues
-                            tensor = tensor.to(device=device, copy=True)
-                        sd[k] = tensor
+                        sd[k] = f.get_tensor(k)
                     if return_metadata:
                         metadata = f.metadata()
         except Exception as e:
