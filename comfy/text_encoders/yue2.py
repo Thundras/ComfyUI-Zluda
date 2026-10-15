@@ -129,12 +129,18 @@ class YuE2TEModel(torch.nn.Module):
     def memory_estimation_function(self, tokens, device=None):
         config = self.config
         abc_length = 0 if tokens["cot"] == "off" else len(tokens["abc_ids"])
-        length = min(config.max_position_embeddings, len(tokens["prefix"]) + abc_length + tokens["max_tokens"] + 2)
+        prompt = len(tokens["prefix"]) + abc_length + 2
+        capacity = min(config.max_position_embeddings, prompt + tokens["max_tokens"])
         branches = 1 if tokens["cfg_scale"] == 1.0 else 2
         dtype = torch.bfloat16 if comfy.model_management.should_use_bf16(device) else torch.float32
-        cache = branches * 2 * config.num_hidden_layers * config.num_key_value_heads * config.head_dim * length
-        prefill = branches * (length * length + length * (config.intermediate_size * 3 + config.hidden_size * 8))
-        return (cache + prefill) * comfy.model_management.dtype_size(dtype)
+        kv = 2 * config.num_hidden_layers * config.num_key_value_heads * config.head_dim
+        activations = config.intermediate_size * 3 + config.hidden_size * 8
+        # Generation holds a full-capacity KV cache but only prefills the prompt; the acoustic pass
+        # runs afterwards and prefills one chunk at a time, so the peak is the larger of the two.
+        generation = branches * (capacity * kv + prompt * (prompt + activations))
+        chunk = min(capacity, prompt + (config.max_position_embeddings - prompt - 3) // 2) + 1
+        acoustic = chunk * (kv + chunk + activations)
+        return max(generation, acoustic) * comfy.model_management.dtype_size(dtype)
 
     def _prefill(self, prefixes, capacity, dtype):
         length = max(map(len, prefixes))
