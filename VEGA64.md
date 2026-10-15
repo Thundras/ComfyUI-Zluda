@@ -71,30 +71,23 @@ Node: **YuE2 Generate or Load Backup** (`audio/YuE2`)
 
 ### `comfy/zluda.py`
 
-`comfyui-user.bat` kopiert bei jedem Start `comfy/customzluda/zluda-default.py` nach `comfy/zluda.py`. Dadurch ist die Datei immer als geändert markiert. Diese Änderung nie committen.
+Alle Start-Skripte kopieren bei jedem Start `comfy/customzluda/zluda-default.py` nach `comfy/zluda.py`. Die Datei im Repo ist ein veralteter Rest: Seit dem 12.06.2025 pflegt patientx nur noch `zluda-default.py`.
 
-Optional kann man Git anweisen, die Datei lokal zu ignorieren:
-
-```
-git update-index --skip-worktree comfy/zluda.py
-git ls-files -v | grep ^S          # markierte Dateien anzeigen
-```
-
-Ändert patientx die Datei, bricht ein Merge ab. Dann:
+Lokal ist `skip-worktree` gesetzt, damit die Kopie nie in `git status` auftaucht und nicht mitcommittet wird:
 
 ```
-git update-index --no-skip-worktree comfy/zluda.py
-git checkout -- comfy/zluda.py
-git merge zluda/pre24patched
-git update-index --skip-worktree comfy/zluda.py
+git update-index --skip-worktree comfy/zluda.py      # einschalten (z. B. nach einem frischen Clone)
+git ls-files -v | grep ^S                            # markierte Dateien anzeigen
+git update-index --no-skip-worktree comfy/zluda.py   # ausschalten
 ```
+
+Sollte ein Merge doch einmal wegen dieser Datei abbrechen: ausschalten, `git checkout -- comfy/zluda.py`, mergen, wieder einschalten.
 
 ### Updates von patientx holen
 
 Der `git pull` im Launcher holt nur von `origin/vega64`. Neue Versionen von patientx kommen so dazu:
 
 ```
-git checkout -- comfy/zluda.py
 git fetch zluda
 git merge zluda/pre24patched
 git push
