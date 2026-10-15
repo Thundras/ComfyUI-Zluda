@@ -30,6 +30,7 @@ Commits laufen über die Noreply-Adresse `10862226+Thundras@users.noreply.github
 | `--disable-mmap` liest ohne mmap | `comfy/utils.py` | Liest Tensor für Tensor in den RAM, die Spitze bleibt bei der Modellgröße. |
 | Launcher | `comfyui-user.bat` | ROCm 5.7, `--use-quad-cross-attention --reserve-vram 0.9 --disable-async-offload --disable-pinned-memory --disable-mmap --disable-smart-memory` |
 | Flash-Decode von comfy-kitchen unter ZLUDA aus | `comfy/customzluda/zluda-default.py` | Nur für Torch 2.7 relevant, siehe unten. |
+| Startmenü | `start.bat` | Auswahl zwischen `comfyui-t24.bat` (Torch 2.7) und `comfyui-user.bat` (Torch 2.2) |
 | Launcher Torch 2.7 | `comfyui-t24.bat` | wie `comfyui-user.bat`, aber `venv-t24`, zusätzlich `--fp16-unet` und ohne `git pull` |
 
 ### Messwerte (Vega 64, ZLUDA)
@@ -63,7 +64,8 @@ Ein Token braucht ~180 ms. Davon entfallen ~75 % auf Matrix-Vektor-Multiplikatio
 - ZLUDA meldet sm 8.8, deshalb rechnet ComfyUI YuE2 in bf16, obwohl die Vega kein natives bf16 hat.
 - Die „Pausen“ beim Music Sampling alle 16 Token sind das Zurücklesen der Token von der GPU. Die Gesamtzeit ändert sich dadurch nicht.
 - Lange Songs: Der Text-Encoder (4,1 GB) und der KV-Cache konkurrieren um den VRAM. Mit ~3,7 GB des Text-Encoders im VRAM laufen ~3,3 Token/s, komplett ausgelagert nur ~1,25 Token/s. Nach einer langen Sitzung mit vielen Modellen wurde der Text-Encoder einmal komplett ausgelagert. Deshalb starten beide Launcher mit `--disable-smart-memory`: Modelle wandern nach jedem Job in den RAM, und jeder Job beginnt mit freiem VRAM. Das Neuladen dauert etwa eine Sekunde.
-- Für lange Songs zählt `max_duration` (25 Token pro Sekunde Audio): Der VRAM wird für die volle Obergrenze reserviert, der Song endet aber oft früher.
+- Lange Songs über den Backup-Node: Er lädt Token-Generierung und akustische Phase getrennt. Für die Generierung liegt der Text-Encoder komplett im VRAM (~5 Token/s, bei 600 s Obergrenze gemessen). Vor der akustischen Phase lädt ComfyUI mit der großzügigen Schätzung neu und lagert wieder aus. Eine Variante, die beide Phasen mit knapperer Schätzung in einem Ladevorgang erledigte, lief nach 8.127 Token in der akustischen Phase in einen Out-of-Memory-Fehler: ~1,5 GiB lagen außerhalb von PyTorch, 864 MiB waren fragmentiert.
+- `max_duration` (25 Token pro Sekunde Audio) großzügig lassen, z. B. 600 s. Bei den Standard-YuE2-Nodes ohne Backup-Node laufen beide Phasen in einem Ladevorgang. Dort schützt erst die hohe Schätzung bei großen Obergrenzen die akustische Phase; knappe Obergrenzen von 5–9 Minuten können dort zum Out-of-Memory-Fehler führen.
 - Die Diffusion langer Songs läuft auf 8 GB ausgelagert (~28 s pro Schritt bei 316 s Audio statt ~1 s bei 30 s). ComfyUI schätzt für 316 s ~5,7 GB Rechenbedarf (`memory_usage_factor` 4.0 mit der Formel ohne Flash-Attention, plus ~1 GB Konditionierung). Die Schätzung ist nicht zu hoch: Mit erzwungen komplett geladenem Modell stürzt der erste Schritt unter ZLUDA mit einem Segmentation Fault ab statt mit einem Out-of-Memory-Fehler. Nicht ändern. Weniger Sampling-Schritte sind der einzige Hebel.
 - HBCC (AMD-Software, „HBCC-Speichersegment“) an lassen. HIP/ZLUDA und damit ComfyUI sehen in jedem Fall nur 8.176 MB, HBCC hilft aber beim teilweise ausgelagerten YuE2-Text-Encoder:
 
@@ -119,7 +121,7 @@ Lumina 2.0 (Comfy-Org/Lumina_Image_2.0_Repackaged, `split_files`): `diffusion_mo
 
 Node: **YuE2 Generate or Load Backup** (`audio/YuE2`)
 
-- `token_backup = Kein Backup - neu generieren`: generiert neu und speichert nach `output/yue2_tokens/<Titel>_mode-…_seed-…_<Zeit>.json`.
+- `token_backup = Kein Backup - neu generieren`: generiert neu und speichert die Token **vor** der akustischen Phase nach `output/yue2_tokens/<Titel>_mode-…_seed-…_<Zeit>.json`. Stürzt danach etwas ab, lässt sich der Lauf aus dem Backup fortsetzen.
 - Wählt man eine JSON-Datei aus, wird die Token-Generierung übersprungen und die Generierungseinstellungen kommen aus der Datei.
 - Gespeichert wird nur über diesen Node, nicht über die Standard-YuE2-Nodes.
 - `custom_nodes/` steht in `.gitignore`. Der Node wurde mit `git add -f` aufgenommen, und Änderungen daran müssen ebenfalls mit `git add -f` hinzugefügt werden.
