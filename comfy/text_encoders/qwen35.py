@@ -9,7 +9,10 @@ import os
 import comfy.model_management
 import comfy.model_prefetch
 import comfy.ops
-import comfy_kitchen
+try:
+    import comfy_kitchen
+except (ImportError, AttributeError):
+    comfy_kitchen = None
 from comfy.quant_ops import QuantizedTensor
 from comfy.ldm.modules.attention import optimized_attention_for_device
 from comfy import sd1_clip

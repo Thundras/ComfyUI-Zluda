@@ -2,7 +2,10 @@
 import math
 from typing import Optional, Tuple
 
-import comfy_kitchen
+try:
+    import comfy_kitchen
+except (ImportError, AttributeError):
+    comfy_kitchen = None
 import torch
 import torch.nn as nn
 

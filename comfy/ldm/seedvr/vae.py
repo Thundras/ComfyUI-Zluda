@@ -40,7 +40,10 @@ from enum import Enum
 import comfy.model_management
 import comfy.ops
 import comfy.quant_ops
-import comfy_kitchen
+try:
+    import comfy_kitchen
+except (ImportError, AttributeError):
+    comfy_kitchen = None
 
 _CL = torch.channels_last_3d
 

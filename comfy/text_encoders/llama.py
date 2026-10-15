@@ -5,7 +5,10 @@ from typing import Optional, Any, Tuple
 import math
 from tqdm import tqdm
 import comfy.utils
-import comfy_kitchen
+try:
+    import comfy_kitchen
+except (ImportError, AttributeError):
+    comfy_kitchen = None
 
 from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.model_management
@@ -80,7 +83,7 @@ class FixedKVBias(FixedKV):
         # zero-init: decode attends full capacity with masked tails, 0*0 stays finite
         key = torch.zeros((batch, kv_heads, capacity, head_dim), device=device, dtype=dtype)
         seqlen = None
-        if dtype == torch.bfloat16 and head_dim in (128, 256) and comfy_kitchen.flash_attention_decode_is_available(key.device):
+        if dtype == torch.bfloat16 and head_dim in (128, 256) and comfy_kitchen is not None and comfy_kitchen.flash_attention_decode_is_available(key.device):
             seqlen = torch.empty((batch,), device=device, dtype=torch.int32)
         return cls(key, torch.zeros_like(key), 0, shared[0], seqlen, shared[1], shared[2])
 

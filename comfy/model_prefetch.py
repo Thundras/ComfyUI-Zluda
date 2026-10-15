@@ -3,7 +3,10 @@ import threading
 import warnings
 import weakref
 
-import comfy_kitchen as ck
+try:
+    import comfy_kitchen as ck
+except (ImportError, AttributeError):
+    ck = None
 import torch
 
 import comfy_aimdo.malloc_graph
