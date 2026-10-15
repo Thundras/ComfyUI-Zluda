@@ -271,17 +271,20 @@ class YuE2TEModel(torch.nn.Module):
             raise ValueError("YuE2 prompt leaves no room for music; shorten the style, lyrics, or ABC.")
         if max_tokens < tokens["max_tokens"]:
             logging.info("YuE2 music budget reduced to %d tokens (%.2f seconds) to fit the prompt.", max_tokens, max_tokens / FRAMES_PER_SECOND)
-        semantic, semantic_truncated = self._generate(
-            prefix, tokens["seed"], max_tokens, "semantic", dtype,
-            negative=negative, cfg_scale=tokens["cfg_scale"], legacy_off=cot == "off",
-            temperature=tokens["temperature"], top_p=tokens["top_p"], top_k=tokens["top_k"],
-            repetition_penalty=tokens["repetition_penalty"], penalty_window=50,
-            min_tokens=min(200, max_tokens),
-        )
+        if "semantic" in tokens:
+            semantic, semantic_truncated = tokens["semantic"], tokens["semantic_truncated"]
+        else:
+            semantic, semantic_truncated = self._generate(
+                prefix, tokens["seed"], max_tokens, "semantic", dtype,
+                negative=negative, cfg_scale=tokens["cfg_scale"], legacy_off=cot == "off",
+                temperature=tokens["temperature"], top_p=tokens["top_p"], top_k=tokens["top_k"],
+                repetition_penalty=tokens["repetition_penalty"], penalty_window=50,
+                min_tokens=min(200, max_tokens),
+            )
         conditioning, chunks = self._acoustic_conditioning(prefix, semantic, dtype)
         return conditioning, None, {
             "yue2_chunks": chunks, "yue2_abc_ids": abc_ids, "yue2_frames": len(semantic),
-            "yue2_truncated": semantic_truncated,
+            "yue2_truncated": semantic_truncated, "yue2_semantic": semantic,
         }
 
 
