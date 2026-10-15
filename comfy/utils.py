@@ -206,9 +206,9 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
         else:
             # Fallback for PyTorch < 2.4: use checkpoint_pickle for compatibility
             try:
-                import comfy.checkpoint_pickle
+                from comfy import checkpoint_pickle
                 logging.warning(f"WARNING: loading {ckpt} with legacy unsafe loader (PyTorch < 2.4). Upgrade to PyTorch 2.4+ or newer for safe loading.")
-                pl_sd = torch.load(ckpt, map_location=device, pickle_module=comfy.checkpoint_pickle, **torch_args)
+                pl_sd = torch.load(ckpt, map_location=device, pickle_module=checkpoint_pickle, **torch_args)
             except ImportError:
                 logging.warning(f"WARNING: loading {ckpt} unsafely, checkpoint_pickle module not available. Upgrade your pytorch to 2.4 or newer to load this file safely.")
                 pl_sd = torch.load(ckpt, map_location=device, weights_only=True, **torch_args)
