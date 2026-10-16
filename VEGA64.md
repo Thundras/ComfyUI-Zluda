@@ -32,6 +32,8 @@ Commits laufen über die Noreply-Adresse `10862226+Thundras@users.noreply.github
 | Flash-Decode von comfy-kitchen unter ZLUDA aus | `comfy/customzluda/zluda-default.py` | Nur für Torch 2.7 relevant, siehe unten. |
 | Startmenü | `start.bat` | Auswahl zwischen `comfyui-t24.bat` (Torch 2.7) und `comfyui-user.bat` (Torch 2.2) |
 | Launcher Torch 2.7 | `comfyui-t24.bat` | wie `comfyui-user.bat`, aber `venv-t24`, zusätzlich `--fp16-unet` und ohne `git pull` |
+| Audio-VAE kachelt lange Songs direkt | `comfy/ldm/audio/autoencoder.py` | Siehe „VAE-Absturz bei langen Songs“. |
+| MP3 mit Tags speichern | `custom_nodes/mp3_tags/` | Titel, Interpret, Album, Jahr, Genre, Lyrics und Cover. |
 
 ### Messwerte (Vega 64, ZLUDA)
 
@@ -76,6 +78,8 @@ Ein Token braucht ~180 ms. Davon entfallen ~75 % auf Matrix-Vektor-Multiplikatio
   | 16 GB | 3,34 | 1,47 |
 
   Die Größe des Segments spielt keine Rolle. Der Treiber setzt beim Umschalten zurück (Bildschirm flackert). Der Wechsel von an auf aus ließ ZLUDA alle Kernels neu übersetzen (~55 min), 12 → 16 GB nicht.
+- VAE-Absturz bei langen Songs: ComfyUI versuchte die Audio-Dekodierung erst am Stück, obwohl die eigene Schätzung (43,6 GiB bei 8.124 Frames) weit über dem freien VRAM lag. Nach diesem echten Out-of-Memory-Fehler stürzte die Kachel-Dekodierung unter ZLUDA mit „Windows fatal exception: access violation“ ab (nachgestellt, Stack in `decode_tiled_1d`). `AudioOobleckVAE` setzt jetzt `comfy_decode_estimate_is_reliable`, damit lange Songs direkt in Kacheln dekodiert werden: 5 von 5 Läufen ohne Fehler, ~55 s für 325 s Audio. Die Warnung „Ran out of memory when regular VAE decoding“ erscheint trotzdem, das ist nur der Text für diesen Weg.
+- Lange Songs über den Backup-Node, gemessen: 8.127 Token in 33:02 min (4,10 Token/s im Schnitt), Diffusion mit 32 Schritten 13:59 min.
 - Hardwarebeschleunigung im Browser ausschalten, wenn er nebenbei läuft: Mit Video im Browser fiel YuE2 von ~2,7 auf ~1,9 Token/s.
 - Pinned Memory (`cudaHostRegister`) funktioniert auf der Vega (13,4 statt 8,9 GB/s RAM→GPU) und brachte beim Auslagern +8 %. Ist noch nicht aktiviert, weil patientx es für ZLUDA standardmäßig abschaltet.
 
@@ -125,6 +129,15 @@ Node: **YuE2 Generate or Load Backup** (`audio/YuE2`)
 - Wählt man eine JSON-Datei aus, wird die Token-Generierung übersprungen und die Generierungseinstellungen kommen aus der Datei.
 - Gespeichert wird nur über diesen Node, nicht über die Standard-YuE2-Nodes.
 - `custom_nodes/` steht in `.gitignore`. Der Node wurde mit `git add -f` aufgenommen, und Änderungen daran müssen ebenfalls mit `git add -f` hinzugefügt werden.
+
+## MP3 mit Tags
+
+Node: **Save MP3 with Tags** (`audio`)
+
+- Speichert wie „Save Audio (MP3)“ nach `output/<filename_prefix>_00001.mp3` und schreibt ID3v2.3-Tags: Titel, Interpret, Album, Jahr, Genre, Lyrics und optional ein Cover (`IMAGE`-Eingang, als JPEG eingebettet). Leere Felder werden weggelassen. Der Windows-Explorer zeigt die Tags an.
+- Braucht `mutagen` (`custom_nodes/mp3_tags/requirements.txt`), in `venv` und `venv-t24` installiert.
+- Den Workflow speichert der Node nicht in die Datei.
+- Wie der Backup-Node mit `git add -f` aufgenommen.
 
 ## Bekannte Grenzen
 
