@@ -135,6 +135,7 @@ Node: **YuE2 Generate or Load Backup** (`audio/YuE2`)
 Node: **Save MP3 with Tags** (`audio`)
 
 - Speichert wie „Save Audio (MP3)“ nach `output/<filename_prefix>_00001.mp3` und schreibt ID3v2.3-Tags: Titel, Interpret, Album, Jahr, Genre, Lyrics und optional ein Cover (`IMAGE`-Eingang, als JPEG eingebettet). Leere Felder werden weggelassen. Der Windows-Explorer zeigt die Tags an.
+- Die Lyrics dürfen dieselben sein wie im YuE2-Node: Tags in eckigen Klammern am Zeilenanfang (`[Chorus: …]`) entfernt der Node. Das Genre bleibt ein Handfeld, weil der Style Prosa ist und sich kein Genre zuverlässig herauslesen lässt.
 - Braucht `mutagen` (`custom_nodes/mp3_tags/requirements.txt`), in `venv` und `venv-t24` installiert.
 - Den Workflow speichert der Node nicht in die Datei.
 - Wie der Backup-Node mit `git add -f` aufgenommen.

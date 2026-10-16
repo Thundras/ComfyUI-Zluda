@@ -1,4 +1,5 @@
 import os
+import re
 from io import BytesIO
 
 import numpy as np
@@ -8,6 +9,13 @@ from PIL import Image
 import folder_paths
 from comfy_api.latest._io import FolderType
 from comfy_api.latest._ui import AudioSaveHelper
+
+
+def plain_lyrics(lyrics):
+    # Drop YuE2 section and style tags such as "[Chorus: gritty female vocal]".
+    lines = [re.sub(r"^\s*\[[^\]]*\]\s*", "", line).rstrip() for line in lyrics.splitlines()]
+    lines = [line for raw, line in zip(lyrics.splitlines(), lines) if line or not raw.strip()]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 
 
 def cover_jpeg(image):
@@ -43,6 +51,7 @@ class SaveMP3WithTags:
     CATEGORY = "audio"
 
     def save(self, audio, filename_prefix, quality, title, artist, album, year, genre, lyrics, cover=None):
+        lyrics = plain_lyrics(lyrics)
         results = AudioSaveHelper.save_audio(audio, filename_prefix, FolderType.output, None, format="mp3", quality=quality)
         frames = [frame for value, frame in (
             (title, TIT2(encoding=3, text=title.strip())),
@@ -50,7 +59,7 @@ class SaveMP3WithTags:
             (album, TALB(encoding=3, text=album.strip())),
             (year, TDRC(encoding=3, text=year.strip())),
             (genre, TCON(encoding=3, text=genre.strip())),
-            (lyrics, USLT(encoding=3, lang="XXX", desc="", text=lyrics.strip())),
+            (lyrics, USLT(encoding=3, lang="XXX", desc="", text=lyrics)),
         ) if value.strip()]
         if cover is not None:
             frames.append(APIC(encoding=3, mime="image/jpeg", type=3, desc="Cover", data=cover_jpeg(cover)))
