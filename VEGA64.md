@@ -150,7 +150,9 @@ Node: **Save MP3 with Tags** (`audio`)
 - Braucht `mutagen` (`custom_nodes/mp3_tags/requirements.txt`), in `venv` und `venv-t24` installiert.
 - Den Workflow speichert der Node nicht in die Datei.
 - **Overlay Logo** (`image`): setzt ein Logo mit Transparenz (PNG, `MASK`-Ausgang von Load Image) auf ein Bild. Schneidet den transparenten Rand ab, sodass Breite, x und y sich auf das sichtbare Logo beziehen. `center_x` zentriert waagerecht, `outline` gibt einen schwarzen Rand in Pixeln für helle Motive.
-- Workflow `user/default/workflows/RYVORA Song + Cover + MP3.json`: Song (YuE2-Subgraph), Genre (Qwen3.5 2B aus dem Style), Cover (Lumina 2, 768², Logo `input/ryvora_logo_trans.png`) und MP3 mit Tags. Lumina 1024² lagert stark aus (29 s/Schritt), deshalb 768².
+- Workflows in `user/default/workflows/`: `RYVORA Cover.json` (Lumina 2, 768², Logo `input/ryvora_logo_trans.png`, speichert `output/covers/RYVORA_*.png`, Seed = Albumnummer) einmal pro Album, dann `RYVORA Song + MP3.json` (YuE2-Subgraph, Genre mit Qwen3.5 2B auf der CPU, Cover per „Load Image (from Outputs)“, MP3 mit Tags). Lumina 1024² lagert stark aus (29 s/Schritt), deshalb 768².
+- Warum getrennt: Im selben Lauf nehmen Qwen und Lumina YuE2 VRAM weg. Qwen vor dem Song lagerte 328 MB des Text-Encoders aus (2,7 statt 5,7 Token/s), die Diffusion nach dem Cover brauchte 79 statt ~25 s/Schritt. Beim Laden von Lumina nach Song und Qwen kam es einmal zu einem Bluescreen 0xD1 in `amdkmdag.sys`. Die Ausführungsreihenfolge lässt sich nicht verlässlich steuern: Loader ohne Eingänge kann ComfyUI jederzeit ausführen, Lazy-Eingänge hielten Qwen im echten Lauf nicht hinter der Diffusion.
+- Genre auf der CPU: ~7 s, kein VRAM, Testprozess insgesamt 8 GB RAM. Dafür prüfen `supports_fp8/nvfp4/mxfp8_compute` jetzt das Gerät, unter ZLUDA (gilt als Nvidia) fragten sie sonst für `cpu` GPU-Eigenschaften ab und brachen ab.
 - Wie der Backup-Node mit `git add -f` aufgenommen.
 
 ## Bekannte Grenzen
