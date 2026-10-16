@@ -2022,7 +2022,7 @@ def supports_fp8_compute(device=None):
     if SUPPORT_FP8_OPS:
         return True
 
-    if not is_nvidia():
+    if not is_nvidia() or (device is not None and is_device_cpu(device)):
         return False
 
     props = torch.cuda.get_device_properties(device)
@@ -2043,7 +2043,7 @@ def supports_fp8_compute(device=None):
     return True
 
 def supports_nvfp4_compute(device=None):
-    if not is_nvidia():
+    if not is_nvidia() or (device is not None and is_device_cpu(device)):
         return False
 
     props = torch.cuda.get_device_properties(device)
@@ -2053,7 +2053,7 @@ def supports_nvfp4_compute(device=None):
     return True
 
 def supports_mxfp8_compute(device=None):
-    if not is_nvidia():
+    if not is_nvidia() or (device is not None and is_device_cpu(device)):
         return False
 
     if torch_version_numeric < (2, 10):
