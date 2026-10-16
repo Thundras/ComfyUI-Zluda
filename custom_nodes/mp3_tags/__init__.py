@@ -134,6 +134,42 @@ class OverlayLogo:
         return (out,)
 
 
+class CachedImage:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "filename_prefix": ("STRING", {"default": "covers/RYVORA"}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "Part of the file name. Delete the file or change the seed to make a new image."}),
+                "image": ("IMAGE", {"lazy": True, "tooltip": "Only computed when output/<filename_prefix>_seed<seed>.png does not exist yet."}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "load_or_save"
+    CATEGORY = "image"
+    DESCRIPTION = "Loads output/<filename_prefix>_seed<seed>.png if it exists, otherwise computes image and saves it there."
+
+    @staticmethod
+    def path(filename_prefix, seed):
+        folder, filename, _, subfolder, _ = folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory())
+        return os.path.join(folder, f"{filename}_seed{seed}.png"), subfolder
+
+    def check_lazy_status(self, filename_prefix, seed, image=None):
+        if image is None and not os.path.exists(self.path(filename_prefix, seed)[0]):
+            return ["image"]
+        return []
+
+    def load_or_save(self, filename_prefix, seed, image=None):
+        path, subfolder = self.path(filename_prefix, seed)
+        if image is None:
+            pixels = np.array(Image.open(path).convert("RGB")).astype(np.float32) / 255.0
+            image = torch.from_numpy(pixels)[None]
+        else:
+            Image.fromarray(np.clip(image[0].cpu().numpy() * 255.0, 0, 255).astype(np.uint8)).save(path)
+        return {"ui": {"images": [{"filename": os.path.basename(path), "subfolder": subfolder, "type": "output"}]}, "result": (image,)}
+
+
 class WaitFor:
     @classmethod
     def INPUT_TYPES(cls):
@@ -157,10 +193,12 @@ NODE_CLASS_MAPPINGS = {
     "SaveMP3WithTags": SaveMP3WithTags,
     "OverlayLogo": OverlayLogo,
     "WaitFor": WaitFor,
+    "CachedImage": CachedImage,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveMP3WithTags": "Save MP3 with Tags",
     "OverlayLogo": "Overlay Logo",
     "WaitFor": "Wait For",
+    "CachedImage": "Cached Image",
 }
