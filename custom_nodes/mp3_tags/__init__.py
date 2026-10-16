@@ -134,12 +134,33 @@ class OverlayLogo:
         return (out,)
 
 
+class WaitFor:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "wait_for": ("*", {"tooltip": "Any output. value is only passed on once this has been computed."}),
+                "value": ("STRING", {"default": "", "tooltip": "For example a model file name, connected to a loader's file name input."}),
+            }
+        }
+
+    RETURN_TYPES = ("*",)
+    FUNCTION = "wait"
+    CATEGORY = "utils"
+    DESCRIPTION = "Delays a loader until another node, such as the song's audio, is done. Loaders have no other inputs, so ComfyUI may otherwise run them at any time."
+
+    def wait(self, wait_for, value):
+        return (value,)
+
+
 NODE_CLASS_MAPPINGS = {
     "SaveMP3WithTags": SaveMP3WithTags,
     "OverlayLogo": OverlayLogo,
+    "WaitFor": WaitFor,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveMP3WithTags": "Save MP3 with Tags",
     "OverlayLogo": "Overlay Logo",
+    "WaitFor": "Wait For",
 }
