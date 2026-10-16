@@ -4,7 +4,7 @@
 
 set "PATH=C:\Program Files\AMD\ROCm\5.7\bin;%PATH%"
 set "PYTHON=%~dp0venv-t24\Scripts\python.exe"
-set "COMMANDLINE_ARGS=--use-quad-cross-attention --reserve-vram 2.2 --disable-async-offload --disable-pinned-memory --disable-mmap --disable-smart-memory --fp16-unet"
+set "COMMANDLINE_ARGS=--use-quad-cross-attention --reserve-vram 0.9 --disable-async-offload --disable-pinned-memory --disable-mmap --disable-smart-memory --fp16-unet"
 set "ZLUDA_COMGR_LOG_LEVEL=1"
 
 copy comfy\customzluda\zluda-default.py comfy\zluda.py /y >NUL

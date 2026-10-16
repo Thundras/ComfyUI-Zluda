@@ -28,7 +28,7 @@ Commits laufen über die Noreply-Adresse `10862226+Thundras@users.noreply.github
 | YuE2-Tokens speichern und fortsetzen | `comfy/text_encoders/yue2.py`, `custom_nodes/yue2_token_backup/` | Lange Token-Generierungen müssen nicht wiederholt werden. |
 | Große Tensoren stückweise auf die CPU kopieren | `comfy/model_patcher.py` | Eine einzelne große GPU→CPU-Kopie (YuE2 lm_head, ~750 MB) stürzt unter ZLUDA ab. Tensoren über 256 MB werden in 16-MB-Blöcken kopiert. |
 | `--disable-mmap` liest ohne mmap | `comfy/utils.py` | Liest Tensor für Tensor in den RAM, die Spitze bleibt bei der Modellgröße. |
-| Launcher | `comfyui-user.bat` | ROCm 5.7, `--use-quad-cross-attention --reserve-vram 2.2 --disable-async-offload --disable-pinned-memory --disable-mmap --disable-smart-memory` |
+| Launcher | `comfyui-user.bat` | ROCm 5.7, `--use-quad-cross-attention --reserve-vram 0.9 --disable-async-offload --disable-pinned-memory --disable-mmap --disable-smart-memory` |
 | Flash-Decode von comfy-kitchen unter ZLUDA aus | `comfy/customzluda/zluda-default.py` | Nur für Torch 2.7 relevant, siehe unten. |
 | Startmenü | `start.bat` | Auswahl zwischen `comfyui-t24.bat` (Torch 2.7) und `comfyui-user.bat` (Torch 2.2) |
 | Launcher Torch 2.7 | `comfyui-t24.bat` | wie `comfyui-user.bat`, aber `venv-t24`, zusätzlich `--fp16-unet` und ohne `git pull` |
@@ -81,7 +81,16 @@ Ein Token braucht ~180 ms. Davon entfallen ~75 % auf Matrix-Vektor-Multiplikatio
 - VAE-Absturz bei langen Songs: ComfyUI versuchte die Audio-Dekodierung erst am Stück, obwohl die eigene Schätzung (43,6 GiB bei 8.124 Frames) weit über dem freien VRAM lag. Nach diesem echten Out-of-Memory-Fehler stürzte die Kachel-Dekodierung unter ZLUDA mit „Windows fatal exception: access violation“ ab (nachgestellt, Stack in `decode_tiled_1d`). `AudioOobleckVAE` setzt jetzt `comfy_decode_estimate_is_reliable`, damit lange Songs direkt in Kacheln dekodiert werden: 5 von 5 Läufen ohne Fehler, ~55 s für 325 s Audio. Die Warnung „Ran out of memory when regular VAE decoding“ erscheint trotzdem, das ist nur der Text für diesen Weg.
 - Lange Songs über den Backup-Node, gemessen: 8.127 Token in 33:02 min (4,10 Token/s im Schnitt), Diffusion mit 32 Schritten 13:59 min.
 - Hardwarebeschleunigung im Browser ausschalten, wenn er nebenbei läuft: Mit Video im Browser fiel YuE2 von ~2,7 auf ~1,9 Token/s.
-- HBCC-Überbelegung: ComfyUI plant mit 8.176 MB minus `--reserve-vram`, der Windows-Desktop belegt aber schon ~1,1 GB. Lumina und die YuE2-Diffusion belegen dadurch mehr als die physischen 8.192 MB (Windows-Zähler „Dedizierter GPU-Speicher“: Lumina 9,6 GB, YuE2-Diffusion 9,1 GB). HBCC lagert den Überschuss stillschweigend aus, und die GPU wird langsam. Lumina mit `--reserve-vram 2.2` statt 0.9: 7,5 statt 18,6 s/Schritt (3 Schritte inkl. VAE), obwohl ComfyUI mehr selbst auslagert. YuE2-Token-Generierung ist davon unberührt (5,71 gegen 5,68 Token/s, Spitze 7,3 GB). YuE2-Diffusion unverändert (20,2 gegen 20,3 s/Schritt, das Modell liegt dort ohnehin komplett ausgelagert), akustische Phase 23 statt 33 s. Deshalb starten beide Launcher mit `--reserve-vram 2.2`. Die früher notierten 5,9 s/Schritt für Lumina stammten aus einem zweiten Lauf im selben Prozess und sind im Alltag nicht erreichbar.
+- `--reserve-vram` ist ein Kompromiss zwischen YuE2 und Lumina, gemessen jeweils im ersten Lauf eines Prozesses, mit TeamViewer und Browser offen:
+
+  | Reserve | Lumina 768² s/Schritt (3 Schritte inkl. VAE) | YuE2-Text-Encoder bei 600 s Obergrenze | Token/s |
+  |---|---|---|---|
+  | 0.9 | 18,6 | komplett | 5,71 |
+  | 1.9 | 15,2 | komplett | 5,71 |
+  | 2.0 | 13,1 | komplett, ~20 MB Luft | 5,70 |
+  | 2.2 | 7,5 | 216 MB ausgelagert | 3,67 |
+
+  Die Launcher bleiben bei 0.9: Die Token-Generierung dauert bei langen Songs über 30 min, das Cover wird über die Album number nur einmal pro Album gerechnet. Schon 216 MB ausgelagerter Text-Encoder kosten ~35 % Token-Rate. Die YuE2-Diffusion ist von der Reserve unabhängig (20,2/20,3 s/Schritt, komplett ausgelagert). Im Token-Lauf belegt Torch 5,9 GB (Text-Encoder 4,1 + KV-Cache 1,8 bei 600 s), der Python-Prozess laut Windows 7,6 GB; ~1,6 GB liegen außerhalb von Torch (ZLUDA/HIP). Zusammen mit Desktop und TeamViewer sind über 8 GB belegt, HBCC fängt das ab, ohne YuE2 zu bremsen. Lumina belegt bei 0.9 bis 9,6 GB, dort bremst die Überbelegung. Die früher notierten 5,9 s/Schritt für Lumina stammten aus einem zweiten Lauf im selben Prozess.
 - Pinned Memory (`cudaHostRegister`) funktioniert auf der Vega (13,4 statt 8,9 GB/s RAM→GPU) und brachte beim Auslagern +8 %. Ist noch nicht aktiviert, weil patientx es für ZLUDA standardmäßig abschaltet.
 
 ## Torch 2.7 + comfy-kitchen (`venv-t24`)

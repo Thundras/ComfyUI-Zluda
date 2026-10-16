@@ -5,7 +5,7 @@ set "PYTHON=%~dp0venv\Scripts\python.exe"
 set "GIT="
 set "VENV_DIR=.\venv"
 
-set "COMMANDLINE_ARGS=--use-quad-cross-attention --reserve-vram 2.2 --disable-async-offload --disable-pinned-memory --disable-mmap --disable-smart-memory"
+set "COMMANDLINE_ARGS=--use-quad-cross-attention --reserve-vram 0.9 --disable-async-offload --disable-pinned-memory --disable-mmap --disable-smart-memory"
 
 :: "--disable-async-offload" added because of this : ComfyUI has added async weight offloading by default, not compatible with older GPUs, try without it , if it works you are good.
 :: "--disable-pinned-memory --disable-mmap" added because it seems to be causing problems for many zluda users old and new. 
