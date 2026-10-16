@@ -3,6 +3,8 @@ import re
 from io import BytesIO
 
 import numpy as np
+import torch
+import torch.nn.functional as F
 from mutagen.id3 import APIC, ID3, TALB, TCON, TDRC, TIT2, TPE1, USLT
 from PIL import Image
 
@@ -75,10 +77,69 @@ class SaveMP3WithTags:
         return {"ui": {"audio": results}}
 
 
+class OverlayLogo:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "logo": ("IMAGE",),
+                "logo_mask": ("MASK", {"tooltip": "MASK output of Load Image, from the logo's transparency."}),
+                "width": ("INT", {"default": 600, "min": 8, "max": 8192}),
+                "center_x": ("BOOLEAN", {"default": True}),
+                "x": ("INT", {"default": 0, "min": -8192, "max": 8192, "tooltip": "Ignored when center_x is on."}),
+                "y": ("INT", {"default": 48, "min": -8192, "max": 8192}),
+                "outline": ("INT", {"default": 3, "min": 0, "max": 64, "tooltip": "Black outline in pixels so the logo stands out on bright images."}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "overlay"
+    CATEGORY = "image"
+
+    def overlay(self, image, logo, logo_mask, width, center_x, x, y, outline):
+        # Load Image returns 1 - alpha as the mask.
+        alpha = 1.0 - logo_mask[:1]
+        if alpha.shape[1:] != logo.shape[1:3]:
+            raise ValueError("The logo needs a transparent background: connect the MASK output of Load Image for a PNG with alpha.")
+        # Crop the transparent border so width, x and y refer to the visible logo.
+        rows = (alpha[0] > 0.01).any(1).nonzero()
+        cols = (alpha[0] > 0.01).any(0).nonzero()
+        if len(rows) == 0:
+            return (image,)
+        top, bottom, left, right = int(rows[0]), int(rows[-1]) + 1, int(cols[0]), int(cols[-1]) + 1
+        logo, alpha = logo[:1, top:bottom, left:right, :3], alpha[:, None, top:bottom, left:right]
+
+        height = max(1, round(logo.shape[1] * width / logo.shape[2]))
+        rgb = F.interpolate(logo.movedim(-1, 1), size=(height, width), mode="bilinear", antialias=True)
+        alpha = F.interpolate(alpha, size=(height, width), mode="bilinear", antialias=True)
+        rgb = F.pad(rgb, (outline,) * 4).to(image.device)
+        alpha = F.pad(alpha, (outline,) * 4).to(image.device)
+        edge = F.max_pool2d(alpha, 2 * outline + 1, stride=1, padding=outline) if outline else torch.zeros_like(alpha)
+
+        if center_x:
+            x = (image.shape[2] - width) // 2
+        x, y = x - outline, y - outline
+        x0, y0 = max(x, 0), max(y, 0)
+        x1, y1 = min(x + rgb.shape[3], image.shape[2]), min(y + rgb.shape[2], image.shape[1])
+        out = image.clone()
+        if x1 <= x0 or y1 <= y0:
+            return (out,)
+        region = out[:, y0:y1, x0:x1, :3]
+        crop = (slice(None), slice(None), slice(y0 - y, y1 - y), slice(x0 - x, x1 - x))
+        a = alpha[crop].movedim(1, -1)
+        e = edge[crop].movedim(1, -1)
+        region.mul_(1.0 - e)
+        region.mul_(1.0 - a).add_(rgb[crop].movedim(1, -1) * a)
+        return (out,)
+
+
 NODE_CLASS_MAPPINGS = {
     "SaveMP3WithTags": SaveMP3WithTags,
+    "OverlayLogo": OverlayLogo,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveMP3WithTags": "Save MP3 with Tags",
+    "OverlayLogo": "Overlay Logo",
 }

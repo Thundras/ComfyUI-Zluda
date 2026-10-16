@@ -81,6 +81,7 @@ Ein Token braucht ~180 ms. Davon entfallen ~75 % auf Matrix-Vektor-Multiplikatio
 - VAE-Absturz bei langen Songs: ComfyUI versuchte die Audio-Dekodierung erst am Stück, obwohl die eigene Schätzung (43,6 GiB bei 8.124 Frames) weit über dem freien VRAM lag. Nach diesem echten Out-of-Memory-Fehler stürzte die Kachel-Dekodierung unter ZLUDA mit „Windows fatal exception: access violation“ ab (nachgestellt, Stack in `decode_tiled_1d`). `AudioOobleckVAE` setzt jetzt `comfy_decode_estimate_is_reliable`, damit lange Songs direkt in Kacheln dekodiert werden: 5 von 5 Läufen ohne Fehler, ~55 s für 325 s Audio. Die Warnung „Ran out of memory when regular VAE decoding“ erscheint trotzdem, das ist nur der Text für diesen Weg.
 - Lange Songs über den Backup-Node, gemessen: 8.127 Token in 33:02 min (4,10 Token/s im Schnitt), Diffusion mit 32 Schritten 13:59 min.
 - Hardwarebeschleunigung im Browser ausschalten, wenn er nebenbei läuft: Mit Video im Browser fiel YuE2 von ~2,7 auf ~1,9 Token/s.
+- HBCC-Überbelegung: ComfyUI plant mit 8.176 MB minus `--reserve-vram`, der Windows-Desktop belegt aber schon ~1,1 GB. Lumina und die YuE2-Diffusion belegen dadurch mehr als die physischen 8.192 MB (Windows-Zähler „Dedizierter GPU-Speicher“: Lumina 9,6 GB, YuE2-Diffusion 9,1 GB). HBCC lagert den Überschuss stillschweigend aus, und die GPU wird langsam. Lumina mit `--reserve-vram 2.2` statt 0.9: 7,5 statt 18,6 s/Schritt (3 Schritte inkl. VAE), obwohl ComfyUI mehr selbst auslagert. YuE2-Token-Generierung ist davon unberührt (5,71 gegen 5,68 Token/s, Spitze 7,3 GB). Die YuE2-Diffusion mit 2.2 ist noch nicht gemessen (mit 0.9: 20,3 s/Schritt). Die früher notierten 5,9 s/Schritt für Lumina stammten aus einem zweiten Lauf im selben Prozess und sind im Alltag nicht erreichbar.
 - Pinned Memory (`cudaHostRegister`) funktioniert auf der Vega (13,4 statt 8,9 GB/s RAM→GPU) und brachte beim Auslagern +8 %. Ist noch nicht aktiviert, weil patientx es für ZLUDA standardmäßig abschaltet.
 
 ## Torch 2.7 + comfy-kitchen (`venv-t24`)
@@ -92,7 +93,7 @@ Torch 2.4 bis 2.7 laufen mit ZLUDA 3.9.5 (rocm5) und HIP 5.7 auf der Vega. comfy
 | YuE2, 750 Token | 2:16 min, 181,7 s gesamt | 2:15 min, 177,1 s gesamt, identische Token |
 | YuE2-Diffusion in fp16 | – | klingt gleich wie bf16 (Korrelation 0,9989, Spektrum identisch) |
 | SD 1.5, 512², 20 Schritte | 1,47 it/s | 1,44 it/s, optisch identisches Bild |
-| Lumina 2.0, 768², 36 Schritte | läuft nicht (braucht comfy-kitchen) | 5,9 s/Schritt, ~3:40 min pro Bild |
+| Lumina 2.0, 768², 36 Schritte | läuft nicht (braucht comfy-kitchen) | ~16–18 s/Schritt, ~10,5 min pro Bild (siehe HBCC-Überbelegung) |
 
 Torch 2.7 ist nicht schneller, kann aber Modelle ausführen, die comfy-kitchen brauchen.
 
@@ -139,6 +140,8 @@ Node: **Save MP3 with Tags** (`audio`)
 - Genre aus dem Style: „Generate Text“ mit `text_encoders/qwen3.5_2b_bf16.safetensors` (Comfy-Org/Qwen3.5, 4,5 GB), `sampling_mode` off, `max_length` 16, System-Prompt „You classify music. Reply with only the main genre of the described music in 1 to 3 words, like a genre tag in a music library. No explanation.“ Läuft unter Torch 2.7 mit ~1 s pro Song (erster Lauf 28 s). Ergebnisse: DnB, pirate shanties, acoustic ballad, schlager. Strengere Prompts machten das 2B-Modell schlechter (Schlager → Pop).
 - Braucht `mutagen` (`custom_nodes/mp3_tags/requirements.txt`), in `venv` und `venv-t24` installiert.
 - Den Workflow speichert der Node nicht in die Datei.
+- **Overlay Logo** (`image`): setzt ein Logo mit Transparenz (PNG, `MASK`-Ausgang von Load Image) auf ein Bild. Schneidet den transparenten Rand ab, sodass Breite, x und y sich auf das sichtbare Logo beziehen. `center_x` zentriert waagerecht, `outline` gibt einen schwarzen Rand in Pixeln für helle Motive.
+- Workflow `user/default/workflows/RYVORA Song + Cover + MP3.json`: Song (YuE2-Subgraph), Genre (Qwen3.5 2B aus dem Style), Cover (Lumina 2, 768², Logo `input/ryvora_logo_trans.png`) und MP3 mit Tags. Lumina 1024² lagert stark aus (29 s/Schritt), deshalb 768².
 - Wie der Backup-Node mit `git add -f` aufgenommen.
 
 ## Bekannte Grenzen
