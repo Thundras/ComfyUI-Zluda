@@ -20,6 +20,31 @@ def plain_lyrics(lyrics):
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 
 
+# ISO 639-2 codes for the ID3 lyrics frame, with common words that rarely appear in the other languages.
+STOPWORDS = {
+    "eng": {"the", "you", "and", "my", "your", "is", "it", "me", "i", "what", "we", "this", "that", "of"},
+    "deu": {"ich", "und", "nicht", "du", "die", "der", "das", "ist", "mich", "mir", "dich", "ein", "wir", "auf"},
+    "spa": {"el", "la", "que", "y", "yo", "tu", "mi", "es", "los", "por", "con", "como", "pero", "una"},
+    "fra": {"je", "tu", "le", "les", "et", "est", "pas", "moi", "toi", "une", "dans", "qui", "mon", "ne"},
+    "ita": {"il", "che", "e", "non", "io", "sei", "mi", "ti", "una", "per", "con", "sono", "della", "ma"},
+    "por": {"o", "que", "e", "não", "eu", "você", "meu", "uma", "com", "para", "os", "é", "em", "minha"},
+    "nld": {"ik", "je", "de", "het", "en", "niet", "een", "is", "mij", "jij", "wat", "van", "dat", "we"},
+}
+
+
+def lyrics_language(lyrics):
+    if re.search(r"[぀-ヿ]", lyrics):
+        return "jpn"
+    if re.search(r"[가-힯]", lyrics):
+        return "kor"
+    if re.search(r"[一-鿿]", lyrics):
+        return "zho"
+    words = re.findall(r"[^\W\d_]+", lyrics.lower())
+    scores = {lang: sum(word in common for word in words) for lang, common in STOPWORDS.items()}
+    lang = max(scores, key=scores.get)
+    return lang if scores[lang] >= 5 else "XXX"
+
+
 def cover_jpeg(image):
     pixels = np.clip(image[0].cpu().numpy() * 255.0, 0, 255).astype(np.uint8)
     buffer = BytesIO()
@@ -64,7 +89,7 @@ class SaveMP3WithTags:
             (album, TALB(encoding=3, text=album.strip())),
             (year, TDRC(encoding=3, text=year.strip())),
             (genre, TCON(encoding=3, text=genre)),
-            (lyrics, USLT(encoding=3, lang="XXX", desc="", text=lyrics)),
+            (lyrics, USLT(encoding=3, lang=lyrics_language(lyrics), desc="", text=lyrics)),
         ) if value.strip()]
         if cover is not None:
             frames.append(APIC(encoding=3, mime="image/jpeg", type=3, desc="Cover", data=cover_jpeg(cover)))
