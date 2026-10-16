@@ -6,7 +6,7 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 
 </div>
 
-*** Comfyui added partial AMD support with the official torch's , at the moment the supported GPU's on windows start from 7000 series and up. For more information about that go to the official comfyui github page. (https://github.com/comfyanonymous/ComfyUI). This fork is still the best solution for older gpu models and even with the official support, most of the cards performance numbers are near what is achieved with zluda AT THE MOMENT. (it would hopefully change as AMD make the official pytorch builds better). ***
+*** NEW PROJECT for RDNA1 to RDNA4, [comfyui-rocm](https://github.com/patientx-cfz/comfyui-rocm) , it is using AMD's official ROCm and PyTorch packages from their TheRock repo. At the moment, it supports every gpu from RDNA1 (5000 series) to the latest RDNA4 (9000 series) *** some 6000 mobile gpus excluded ***. This is different from Comfyui-Zluda , it doesn't use zluda or other 3rd party apps to launch comfyui , it is also partially portable. It auto-detects your GPU (from the supported ones) and installs the necessary ROCm and PyTorch packages plus triton , sage-attention , flash-attention and bitsandbytes comfyui. Give it a try ! ***
 
 <details>
 <summary><strong>FOR THOSE THAT ARE GETTING TROJAN DETECTIONS IN NCCL.DLL IN ZLUDA FOLDER</strong></summary>
@@ -20,12 +20,12 @@ The antiviruses, including Windows Defender on my computer, didn't detect them a
 **SOLUTION: IGNORE THE WARNING AND EXCLUDE THE ZLUDA (or better the whole comfyui-zluda) FOLDER FROM DEFENDER.**
 </details>
 
-***** There was a small problem regarding old passwords getting used instead of the actual one so github's system automatically locked my account and repos , now they are back. Sorry for your troubles and thanks for your concerns. *****
-
 <details>
-<summary><strong>What's New? (07-01-2026)</strong> [:: simpler cfz-cudnn node added ::] </summary>
+<summary><strong>What's New? (19-03-2026)</strong> [:: ltxv2.3 i2v workflow added ::] </summary>
 
 ### Recent Updates
+
+ Added a ltx2.3 workflow to the workflows folder, that is designed to be fast and efficient , while using lowest amount of memory. It is for i2v and it only uses the distilled version of the ltxv2.3 model , no upscaling, no second stage. (based on a workflow by Kijai).
 
  Added a simple "cfz-cudnn" node to the cfz-caching nodes. It is able to connect to ANY node AND can work without outputting to anything so it can be used like this for example (just to make vae work) :
 
@@ -121,7 +121,7 @@ Note: You *might* need older drivers for sdk 5.7.1 and old ZLUDA to work so if y
 6. Copy these commands one by one and press enter after each one:
 
 ```bash
-git clone https://github.com/patientx/ComfyUI-Zluda
+git clone -b pre24patched https://github.com/patientx/ComfyUI-Zluda 
 ```
 
 ```bash
