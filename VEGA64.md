@@ -140,12 +140,19 @@ Node: **YuE2 Generate or Load Backup** (`audio/YuE2`)
 - Gespeichert wird nur über diesen Node, nicht über die Standard-YuE2-Nodes.
 - `custom_nodes/` steht in `.gitignore`. Der Node wurde mit `git add -f` aufgenommen, und Änderungen daran müssen ebenfalls mit `git add -f` hinzugefügt werden.
 
+## YuE2-Lyrics schreiben
+
+- Die Songlänge bestimmt das Modell selbst über ein Ende-Token. `max_duration` ist nur die Obergrenze, das Ende-Token ist nur in den ersten 200 Tokens (8 s) gesperrt.
+- Beschreibungen im Sektions-Tag (`[Drop: massive halftime impact, wobble bass]`) setzt YuE2 an der Stelle um, obwohl die offizielle Anleitung nur einfache Tags zeigt.
+- Mitten im Song keine Schluss-Signale in Tags: „pause“, „silence“, „cut“, „delayed“ gefolgt von ein, zwei kurzen Zeilen. DEAD SWITCH endete so nach 1:52 bei `[Build: drums cut, … deceptive pause]`. Besser „drops out“, „tension rising“, „leads into drop“.
+- Eigene Tags, die im Style definiert werden (`[Q] means: …`), versteht YuE2 nicht. Test `QR TAG TEST.json` (gleiche Lyrics und Seed, Q/R-Definition vertauscht) ergab in beiden Läufen einen Mischmasch ohne Spiegelung.
+
 ## MP3 mit Tags
 
 Node: **Save MP3 with Tags** (`audio`)
 
 - Speichert wie „Save Audio (MP3)“ nach `output/<filename_prefix>_00001.mp3` und schreibt ID3v2.3-Tags: Titel, Interpret, Album, Jahr, Genre, Lyrics und optional ein Cover (`IMAGE`-Eingang, als JPEG eingebettet). Leere Felder werden weggelassen. Der Windows-Explorer zeigt die Tags an.
-- Die Lyrics dürfen dieselben sein wie im YuE2-Node: Tags in eckigen Klammern am Zeilenanfang (`[Chorus: …]`) entfernt der Node. Ein komplett klein geschriebenes Genre bekommt große Anfangsbuchstaben.
+- Die Lyrics dürfen dieselben sein wie im YuE2-Node: Tags in eckigen Klammern am Zeilenanfang (`[Chorus: …]`) entfernt der Node. Die Sprache im Lyrics-Tag erkennt er am Text ohne die Tags (Schrift für Japanisch/Koreanisch/Chinesisch, häufige Wörter für sieben europäische Sprachen, sonst `XXX`). Spotify zeigt bei lokalen Dateien keine eingebetteten Lyrics an. Ein komplett klein geschriebenes Genre bekommt große Anfangsbuchstaben.
 - Genre aus dem Style: „Generate Text“ mit `text_encoders/qwen3.5_2b_bf16.safetensors` (Comfy-Org/Qwen3.5, 4,5 GB), `sampling_mode` off, `max_length` 16, System-Prompt „You classify music. Reply with only the main genre of the described music in 1 to 3 words, like a genre tag in a music library. No explanation.“ Läuft unter Torch 2.7 mit ~1 s pro Song (erster Lauf 28 s). Ergebnisse: DnB, pirate shanties, acoustic ballad, schlager. Strengere Prompts machten das 2B-Modell schlechter (Schlager → Pop).
 - Braucht `mutagen` (`custom_nodes/mp3_tags/requirements.txt`), in `venv` und `venv-t24` installiert.
 - Den Workflow speichert der Node nicht in die Datei.
