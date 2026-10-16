@@ -252,6 +252,10 @@ class OobleckDecoder(nn.Module):
 
 
 class AudioOobleckVAE(nn.Module):
+    # The decode estimate is conservative, so long audio is tiled without first hitting an OOM.
+    # Under ZLUDA the tiled fallback after a real OOM crashes with an access violation.
+    comfy_decode_estimate_is_reliable = True
+
     def __init__(self,
                  in_channels=2,
                  channels=128,
