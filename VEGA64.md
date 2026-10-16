@@ -30,7 +30,7 @@ Commits laufen über die Noreply-Adresse `10862226+Thundras@users.noreply.github
 | `--disable-mmap` liest ohne mmap | `comfy/utils.py` | Liest Tensor für Tensor in den RAM, die Spitze bleibt bei der Modellgröße. |
 | Launcher | `comfyui-user.bat` | ROCm 5.7, `--use-quad-cross-attention --reserve-vram 0.9 --disable-async-offload --disable-pinned-memory --disable-mmap --disable-smart-memory` |
 | Flash-Decode von comfy-kitchen unter ZLUDA aus | `comfy/customzluda/zluda-default.py` | Nur für Torch 2.7 relevant, siehe unten. |
-| Startmenü | `start.bat` | Auswahl zwischen `comfyui-t24.bat` (Torch 2.7) und `comfyui-user.bat` (Torch 2.2) |
+| Startmenü | `start.bat` | Auswahl zwischen `comfyui-t24.bat` (Torch 2.7) und `comfyui-user.bat` (Torch 2.2). Holt vorher `zluda/master` (nur fetch) und meldet, wie viele patientx-Commits fehlen. |
 | Launcher Torch 2.7 | `comfyui-t24.bat` | wie `comfyui-user.bat`, aber `venv-t24`, zusätzlich `--fp16-unet` und ohne `git pull` |
 | Audio-VAE kachelt lange Songs direkt | `comfy/ldm/audio/autoencoder.py` | Siehe „VAE-Absturz bei langen Songs“. |
 | MP3 mit Tags speichern | `custom_nodes/mp3_tags/` | Titel, Interpret, Album, Jahr, Genre, Lyrics und Cover. |
