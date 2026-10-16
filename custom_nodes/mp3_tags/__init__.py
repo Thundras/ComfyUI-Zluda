@@ -52,13 +52,16 @@ class SaveMP3WithTags:
 
     def save(self, audio, filename_prefix, quality, title, artist, album, year, genre, lyrics, cover=None):
         lyrics = plain_lyrics(lyrics)
+        genre = genre.strip().rstrip(".")
+        if genre.islower():
+            genre = genre.title()
         results = AudioSaveHelper.save_audio(audio, filename_prefix, FolderType.output, None, format="mp3", quality=quality)
         frames = [frame for value, frame in (
             (title, TIT2(encoding=3, text=title.strip())),
             (artist, TPE1(encoding=3, text=artist.strip())),
             (album, TALB(encoding=3, text=album.strip())),
             (year, TDRC(encoding=3, text=year.strip())),
-            (genre, TCON(encoding=3, text=genre.strip())),
+            (genre, TCON(encoding=3, text=genre)),
             (lyrics, USLT(encoding=3, lang="XXX", desc="", text=lyrics)),
         ) if value.strip()]
         if cover is not None:

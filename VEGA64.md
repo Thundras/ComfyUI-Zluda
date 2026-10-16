@@ -135,7 +135,8 @@ Node: **YuE2 Generate or Load Backup** (`audio/YuE2`)
 Node: **Save MP3 with Tags** (`audio`)
 
 - Speichert wie „Save Audio (MP3)“ nach `output/<filename_prefix>_00001.mp3` und schreibt ID3v2.3-Tags: Titel, Interpret, Album, Jahr, Genre, Lyrics und optional ein Cover (`IMAGE`-Eingang, als JPEG eingebettet). Leere Felder werden weggelassen. Der Windows-Explorer zeigt die Tags an.
-- Die Lyrics dürfen dieselben sein wie im YuE2-Node: Tags in eckigen Klammern am Zeilenanfang (`[Chorus: …]`) entfernt der Node. Das Genre bleibt ein Handfeld, weil der Style Prosa ist und sich kein Genre zuverlässig herauslesen lässt.
+- Die Lyrics dürfen dieselben sein wie im YuE2-Node: Tags in eckigen Klammern am Zeilenanfang (`[Chorus: …]`) entfernt der Node. Ein komplett klein geschriebenes Genre bekommt große Anfangsbuchstaben.
+- Genre aus dem Style: „Generate Text“ mit `text_encoders/qwen3.5_2b_bf16.safetensors` (Comfy-Org/Qwen3.5, 4,5 GB), `sampling_mode` off, `max_length` 16, System-Prompt „You classify music. Reply with only the main genre of the described music in 1 to 3 words, like a genre tag in a music library. No explanation.“ Läuft unter Torch 2.7 mit ~1 s pro Song (erster Lauf 28 s). Ergebnisse: DnB, pirate shanties, acoustic ballad, schlager. Strengere Prompts machten das 2B-Modell schlechter (Schlager → Pop).
 - Braucht `mutagen` (`custom_nodes/mp3_tags/requirements.txt`), in `venv` und `venv-t24` installiert.
 - Den Workflow speichert der Node nicht in die Datei.
 - Wie der Backup-Node mit `git add -f` aufgenommen.
