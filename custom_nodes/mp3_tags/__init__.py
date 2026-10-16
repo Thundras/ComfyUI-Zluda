@@ -39,13 +39,18 @@ class SaveMP3WithTags:
                 "artist": ("STRING", {"default": ""}),
                 "album": ("STRING", {"default": ""}),
                 "year": ("STRING", {"default": ""}),
-                "genre": ("STRING", {"default": ""}),
+                "genre": ("STRING", {"default": "", "lazy": True}),
                 "lyrics": ("STRING", {"multiline": True, "default": ""}),
             },
             "optional": {
-                "cover": ("IMAGE",),
+                "cover": ("IMAGE", {"lazy": True}),
             },
         }
+
+    # Genre and cover models run only after the song is done, so they don't take VRAM from YuE2.
+    # Connected but not yet evaluated inputs arrive as None, unconnected ones are absent.
+    def check_lazy_status(self, **kwargs):
+        return [name for name in ("genre", "cover") if name in kwargs and kwargs[name] is None]
 
     RETURN_TYPES = ()
     FUNCTION = "save"
